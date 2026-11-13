@@ -1,0 +1,20 @@
+# Prometheus config for the ephemerd monitoring stack.
+# Runner targets are discovered from /etc/prometheus/targets/*.json, which a Go
+# program regenerates from state. Each target entry carries labels:
+#   pool, host, os, arch
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets:
+          - localhost:9090
+
+  - job_name: ephemerd-runners
+    file_sd_configs:
+      - files:
+          - /etc/prometheus/targets/*.json
+        refresh_interval: 30s

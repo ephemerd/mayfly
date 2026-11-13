@@ -1,0 +1,13 @@
+[Unit]
+Description=Weekly garbage collection for the GitHub Actions cache registry
+
+[Timer]
+# Early Sunday morning, when the fleet is quietest: the registry is down for
+# the few minutes the collection takes, and jobs miss the cache meanwhile.
+OnCalendar=Sun *-*-* 04:00:00
+RandomizedDelaySec=30min
+Persistent=true
+Unit=actions-cache-gc.service
+
+[Install]
+WantedBy=timers.target

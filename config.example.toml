@@ -1,0 +1,202 @@
+# mayfly fleet configuration
+# Copy to ~/.mayfly/config.toml and fill in credentials.
+#
+#   mayfly plan     show what would change
+#   mayfly apply    reconcile the fleet to match [pools.*]
+#   mayfly destroy  tear down a pool (or everything)
+#
+# Change semantics (cheapest action wins):
+#   repos / ephemerd version / creds / hostname  -> config write + ephemerd restart (seconds, caches kept)
+#   cores / memory_mb                            -> drain + power cycle (~30s, caches kept)
+#   disk_gb increase                             -> live resize + filesystem grow (no reboot)
+#   template change or disk_gb decrease          -> member replacement (the only rebuilds)
+#   apply --replace <pool>                       -> force-rebuild a wedged pool
+
+[proxmox]
+url = "https://pve.example.com:8006/api2/json"
+token_id = "mayfly@pve!mayfly"
+secret = "00000000-0000-0000-0000-000000000000"
+node = "pve1"                  # default PVE node; pools can override
+storage = "local-lvm"          # must accept iso + import content; pools can override
+insecure_skip_verify = true    # lab only
+
+[cloudflare]
+api_token = ""                 # scoped: Zone.DNS edit + Cloudflare Tunnel edit
+account_id = ""
+zone_id = ""
+base_domain = "example.com"    # informational; pool hostnames are full FQDNs
+
+[github]
+owner = "your-org"
+# app_id / installation_id / private_key_path can come from
+# EPHPM_APP_ID / EPHPM_INSTALLATION_ID / EPHPM_PRIVATE_KEY_PATH env vars.
+# app_id = 123456
+# installation_id = 789012
+# private_key_path = "C:/Users/you/.mayfly/app.pem"
+
+# Optional dispatch allowlist (ephemerd's [github.dispatch_policy]), rendered
+# into every node. Defence in depth UNDER GitHub's "require approval for outside
+# collaborators" setting, not a replacement for it — that approval gate is what
+# actually stops a fork PR from running on your hardware.
+#
+# Unset (the default) = no restriction. Setting either field narrows dispatch;
+# both are ANDed. Recommended for public repos on runners with [dind] enabled.
+# [github.dispatch_policy]
+# required_labels = ["ephemerd"]        # job must carry one of these, beyond
+#                                       # the mandatory "self-hosted" label
+# allowed_repos = ["repo-a", "repo-b"]  # BARE repo names, never "owner/repo"
+#
+# A pool may tighten it per-field ([pools.<name>.dispatch_policy]); an empty
+# field there inherits the fleet-wide value, so a pool can never loosen it.
+#
+# Extra targets are separate providers in ephemerd with their OWN policy and no
+# inheritance from [github]. mayfly passes required_labels down to them, but
+# never allowed_repos — those are bare names scoped to the target's owner, and
+# copying another owner's list would block every job. Give a target its own:
+# [pools.linux-amd64.github_extra.dispatch_policy]
+# allowed_repos = ["their-repo"]
+
+[ephemerd]
+version = "v0.1.0"             # release tag on github.com/ephpm/ephemerd
+# binary_url = ""              # override the release URL entirely
+
+[defaults]
+cores = 4
+memory_mb = 8192
+disk_gb = 60
+
+# One pool per os/arch. Each pool gets one Cloudflare tunnel, one DNS name,
+# and one shared webhook secret; members are identical linked clones.
+# GitHub sends every workflow_job event to every pool's webhook; nodes claim
+# only jobs whose labels match their platform.
+
+[pools.linux-amd64]
+hostname = "ci-linux-amd64.example.com"
+size = 1                       # scale freely; members share the tunnel + webhook (ephemerd pool mode)
+# os = "linux"                 # default
+# arch = "amd64"               # default
+# cores = 8                    # per-pool overrides of [defaults]
+# memory_mb = 16384
+# disk_gb = 120
+# repos = ["repo1", "friend/project"]   # omit for org-level runners
+# max_concurrent = 2                    # parallel jobs per member (0 = ephemerd default of 4)
+# ephemerd_version = "v0.2.0"           # canary pin, overrides [ephemerd] version for this pool
+#
+# Isolation is required for VM pools: a Proxmox VM pool must EITHER set a
+# vlan_tag (isolate its runners on their own layer-2 segment) OR set
+# allow_lan = true (deliberately accept the trusted flat LAN). Validation
+# refuses a VM pool that sets neither, so a new pool can't land untrusted CI
+# on the LAN just by forgetting the tag. Enrolled (members = [...]) and darwin
+# pools have no mayfly-controlled vNIC and are exempt.
+allow_lan = true               # accept the flat LAN (remove once vlan_tag is set)
+# vlan_tag = 42                # put this pool's runners on an isolated VLAN
+#                              # (net0 tag=42), the recommended default. Needs
+#                              # "bridge-vlan-aware yes" on the bridge and the
+#                              # VLAN configured on the switch/router; the ACL
+#                              # that stops runners reaching the rest of RFC1918
+#                              # lives there too. Set this and drop allow_lan.
+#                              # plan/apply verify the bridge is VLAN-aware and
+#                              # hard-fail a reachable-but-plain bridge (the tag
+#                              # would be silently inert). If the pool's Proxmox
+#                              # node is UNREACHABLE, the check can't run: mayfly
+#                              # warns and skips just that pool (a down node
+#                              # can't be reconfigured anyway) instead of
+#                              # aborting the whole plan/apply — rerun once the
+#                              # node is back.
+# firewall = true              # enable the Proxmox firewall on the runner vNIC
+#                              # (net0 firewall=1). Also requires the firewall
+#                              # enabled at datacenter + VM level; policy and
+#                              # rules are configured outside mayfly.
+# node = "node-b"               # place this pool on a specific PVE node
+# storage = "local"            # template storage; must accept import content
+# vm_storage = "local-lvm"     # put the VM DISK on a separate storage via a
+#                              # FULL clone. Empty (default) = LINKED clone, which
+#                              # forces the disk onto the template's storage —
+#                              # unchanged historical behavior. Set it when the
+#                              # template must live on a small import-capable dir
+#                              # store but the runner disk needs a bigger/separate
+#                              # one: e.g. the node-b node, whose only big storage
+#                              # is a 794 GiB "local-lvm" block thinpool while
+#                              # templates need "local" (~85 GiB) — a linked clone
+#                              # trapped the disk on "local" and filled it. A full
+#                              # clone COPIES the disk (slower to provision, uses
+#                              # real space on vm_storage) vs a linked clone's
+#                              # reference — the intended tradeoff. vm_storage must
+#                              # accept disk images (images/rootdir content).
+
+# linux/arm64: template auto-created (UEFI) on the pool's node.
+# [pools.linux-arm64]
+# hostname = "ci-linux-arm64.example.com"
+# arch = "arm64"
+# node = "pve-arm"             # the arm64 PVE host
+# size = 1
+
+# windows: requires a hand-built template (Windows Server + virtio drivers +
+# QEMU guest agent + Cloudbase-Init, sysprep /generalize, convert to template).
+# Disk must be scsi0 with the OS on drive C:.
+# [pools.win-amd64]
+# hostname = "ci-win-amd64.example.com"
+# os = "windows"
+# template = "mayfly-winserver-2025"
+# size = 1
+
+# darwin: bare-metal Macs enrolled over SSH — mayfly cannot create the
+# hardware, so `members` declares it. apply converges ephemerd (binary,
+# config, launchd service) on each host; removing a host from the list
+# uninstalls ephemerd but leaves the machine alone. ssh_user needs
+# passwordless sudo; keys/agent/ProxyJump come from your ssh config.
+# ephemerd runs macOS jobs natively (per-job VMs via Virtualization.framework).
+# [pools.mac-arm64]
+# hostname = "ci-mac-arm64.example.com"
+# os = "darwin"
+# members = ["mini1.lan", "mini2.lan"]
+# ssh_user = "ephemerd"              # dedicated service account (passwordless sudo)
+# ssh_key = "~/.ssh/mayfly_ed25519"  # optional: pin one key; default uses your
+#                                    # agent + ~/.ssh identities + ssh_config
+# ssh_port = 22                      # optional non-default port
+# ssh_password = "..."               # last resort: password auth via an embedded
+#                                    # SSH client (bypasses ssh_config and skips
+#                                    # host-key verification — prefer keys)
+
+# monitoring: an optional single Prometheus + Grafana node. When present,
+# mayfly turns on ephemerd's /metrics endpoint on every runner and provisions
+# one long-lived VM that scrapes them over the LAN (file_sd targets generated
+# from state) and serves Grafana on :3000 with pre-built ephemerd dashboards.
+# It is not a runner pool: no ephemerd, no webhook, never scales.
+# [monitoring]
+# cores = 2                          # default 2
+# memory_mb = 4096                   # default 4096
+# disk_gb = 40                       # default 40
+# retention_days = 15                # Prometheus TSDB retention (default 15)
+# grafana_admin_password = "..."     # default "admin" — set this
+# node = "node-a"                   # optional: defaults to [proxmox] node
+# storage = "local-lvm"              # optional: defaults to [proxmox] storage
+# template = "mayfly-ubuntu-24.04-amd64"  # optional; auto-created if missing
+# metrics_port = 9090                # ephemerd /metrics port on runners (default 9090)
+
+# registry_cache: a container-registry pull-through cache, colocated on the
+# same VM [monitoring] provisions (that VM is the fleet's "utility host").
+# Runner nodes are pointed at it automatically, so a job image crosses the WAN
+# once and is served from the LAN for every job after that — a big win when one
+# pool pulls the same ~1GB image dozens of times a day, and it sidesteps Docker
+# Hub pull-rate limits.
+#
+# Requires a [monitoring] section (that's what declares the host). Everything
+# below is optional; `enabled = true` alone is a working config.
+# [registry_cache]
+# enabled = true
+# port = 5000                        # LAN port (default 5000)
+# upstream = "https://registry-1.docker.io"   # registry being cached (default)
+# max_size_gb = 20                   # hard disk cap (default 20); must be less
+#                                    # than the utility host's disk_gb. Over the
+#                                    # cap the blob store is dropped and the
+#                                    # cache refills — nothing here is precious.
+# ttl = "168h"                       # expire blobs not re-pulled in this long
+# username = ""                      # optional upstream credentials; for Docker
+# password = ""                      # Hub these lift the anonymous pull limit
+# endpoint = ""                      # optional: the URL runners use. Empty
+#                                    # derives it from the utility host's LAN
+#                                    # address once provisioned. Set it to use a
+#                                    # DNS name or an https front end.
+# fail_open = true                   # default: if the cache is down, runners
+#                                    # pull from upstream instead of failing

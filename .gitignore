@@ -1,0 +1,23 @@
+# Compiled binary
+/mayfly.exe
+*.exe
+
+# Local secrets / runtime state (real config & state live in ~/.mayfly)
+*.pem
+*.key
+config.toml
+/state.yaml
+
+# Packer build artifacts (logs can leak API tokens; caches are large)
+packer/**/*.log
+packer/**/*.out
+packer/**/*.err
+packer/**/packer_cache/
+packer/**/*.crash
+packer/**/manifest.json
+packer/**/_*
+
+# Editor / agent scratch
+.claude/
+audit/
+.DS_Store

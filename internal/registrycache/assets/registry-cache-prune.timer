@@ -1,0 +1,12 @@
+[Unit]
+Description=Periodic size check for the container registry pull-through cache
+
+[Timer]
+# First check shortly after boot, then every 15 minutes. A busy fleet can pull
+# several GiB between checks, so this stays well ahead of the cap.
+OnBootSec=10min
+OnUnitActiveSec=15min
+Unit=registry-cache-prune.service
+
+[Install]
+WantedBy=timers.target

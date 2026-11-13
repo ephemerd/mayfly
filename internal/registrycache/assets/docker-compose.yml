@@ -1,0 +1,46 @@
+# ephemerd utility host — container registry pull-through cache
+#
+# A stock `registry:2` in proxy mode: it serves image pulls from a local blob
+# store and fetches anything it does not have from REGISTRY_UPSTREAM once.
+# Runner nodes point their container runtime at it, so the same job image
+# crosses the WAN once instead of once per job.
+#
+# This is its own Compose project (separate from /opt/monitoring) so the two
+# services on the utility host have independent lifecycles: enabling or
+# disabling the cache never touches Prometheus or Grafana.
+#
+# Env comes from the project-dir .env, which mayfly writes (see EnvPath):
+#   REGISTRY_PORT                LAN port to publish (default 5000)
+#   REGISTRY_UPSTREAM            registry being cached
+#   REGISTRY_TTL                 blob expiry for un-repulled content
+#   REGISTRY_UPSTREAM_USERNAME   optional upstream credentials
+#   REGISTRY_UPSTREAM_PASSWORD
+#   REGISTRY_CACHE_MAX_GB        hard disk cap, enforced by the prune timer
+#
+# The blob store is a host bind mount (not a named volume) so the prune script
+# and the operator both have a stable path to measure and reclaim.
+#
+# No top-level `version:` key — Compose v2 spec.
+
+services:
+  registry-cache:
+    image: registry:2
+    container_name: registry-cache
+    restart: unless-stopped
+    environment:
+      # Proxy mode. Setting a remote URL is what turns a registry into a
+      # pull-through cache; it then refuses pushes, which is what we want.
+      REGISTRY_PROXY_REMOTEURL: ${REGISTRY_UPSTREAM:-https://registry-1.docker.io}
+      REGISTRY_PROXY_USERNAME: ${REGISTRY_UPSTREAM_USERNAME:-}
+      REGISTRY_PROXY_PASSWORD: ${REGISTRY_UPSTREAM_PASSWORD:-}
+      # Blobs not re-pulled within the TTL are scheduled for deletion by the
+      # registry itself — the continuous half of the size bound.
+      REGISTRY_PROXY_TTL: ${REGISTRY_TTL:-168h}
+      # Required for the TTL scheduler to actually delete anything.
+      REGISTRY_STORAGE_DELETE_ENABLED: "true"
+      REGISTRY_LOG_LEVEL: ${REGISTRY_LOG_LEVEL:-info}
+    volumes:
+      - /var/lib/registry-cache:/var/lib/registry
+    ports:
+      # LAN-accessible: every runner node pulls through this.
+      - ${REGISTRY_PORT:-5000}:5000

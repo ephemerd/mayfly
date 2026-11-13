@@ -1,0 +1,87 @@
+name: CI
+
+# mayfly renders the ephemerd config for every node in the fleet, so a bad
+# build here reaches every runner. This runs on the fleet's own linux-amd64
+# pool via the [[pools.linux-amd64.github_extra]] block (owner "luthermonson"),
+# which must list "mayfly" in its repos for these jobs to be served at all — a
+# repo missing from that list has its jobs queue silently until GitHub cancels
+# them 24h later.
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "**/*.md"
+      - "LICENSE"
+  pull_request:
+    branches: [main]
+    paths-ignore:
+      - "**/*.md"
+      - "LICENSE"
+
+# Least privilege: this workflow only reads the repo (build/vet/test). Declare
+# it explicitly so it never inherits broader ambient token permissions —
+# important on a self-hosted runner where the token reaches the fleet.
+permissions:
+  contents: read
+
+# Fleet capacity is finite (linux-amd64 runs max_concurrent=3 and is shared
+# with every ephpm repo). Superseded pushes to a PR should not hold slots.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  # Matches the `go 1.26.2` directive in go.mod. The runner-ci-linux image
+  # bakes Go 1.26.1, which is BELOW that — without setup-go the toolchain
+  # would silently fetch 1.26.2 at build time (or fail closed under
+  # GOTOOLCHAIN=local), so pin it explicitly here. Bump both together.
+  GO_VERSION: "1.26.2"
+
+jobs:
+  ci:
+    name: Build, Vet & Test (Linux)
+    runs-on: [self-hosted, linux, x64]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      # The image's Go is 1.26.1; go.mod wants 1.26.2. Unlike ephemerd (whose
+      # go.mod matches the image), mayfly needs setup-go. Note also that
+      # /opt/ephemerd-ci/entrypoint-cache.sh is deliberately NOT used here: it
+      # seeds ephemerd's pkg/*/embed and bin/ trees into the workspace and
+      # would only litter this checkout.
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Build
+        run: go build ./...
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test ./...
+
+      # mayfly is operated from Windows and manages Linux and macOS nodes, so a
+      # break on any of the three matters. One step rather than three jobs:
+      # each cross-build is seconds against a warm cache, and three extra jobs
+      # would take three runner slots from a pool that only has three. The loop
+      # runs all targets and reports every failure instead of stopping at the
+      # first, so one red target never hides another.
+      - name: Cross-build (linux, windows, darwin)
+        run: |
+          fail=0
+          for target in linux/amd64 windows/amd64 darwin/arm64; do
+            goos="${target%%/*}"
+            goarch="${target##*/}"
+            echo "::group::GOOS=$goos GOARCH=$goarch go build ./..."
+            if GOOS="$goos" GOARCH="$goarch" go build ./...; then
+              echo "OK   $target"
+            else
+              echo "FAIL $target"
+              fail=1
+            fi
+            echo "::endgroup::"
+          done
+          exit "$fail"

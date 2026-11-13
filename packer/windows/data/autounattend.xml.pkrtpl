@@ -1,0 +1,260 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Unattended install for Windows Server 2025 Standard (Desktop Experience).
+  Target VM: SeaBIOS (BIOS/MBR), virtio-scsi-single disk, virtio NIC.
+
+  WinPE pass injects the virtio storage driver from the virtio-win CD so
+  Windows setup can see the virtio-scsi disk. The CD letter varies (the
+  installer, virtio CD and autounattend CD compete for D:/E:/F:), so we list
+  candidate driver paths across letters; missing paths are ignored.
+
+  oobeSystem sets the local Administrator password from the winadmin_password
+  variable (WINADMIN_PASSWORD in the environment), auto-logs on once and runs
+  bootstrap-winrm.ps1 (found by scanning CD drives) to bring up WinRM + the
+  QEMU guest agent so Packer can connect.
+-->
+<unattend xmlns="urn:schemas-microsoft-com:unattend">
+
+  <settings pass="windowsPE">
+    <!--
+      virtio-scsi driver handling. The install disk (scsi0) needs vioscsi in two
+      environments and NEITHER can use <DriverPaths>/PnpCustomizationsWinPE: on
+      this Server 2025 media that component aborts Setup with 0x80070103-0x40031
+      whenever a listed path is absent (the virtio CD's WinPE letter is unknown,
+      so most listed letters are wrong). So instead:
+        1. RunSynchronous Order 1: drvload vioscsi into live WinPE so Setup can
+           SEE scsi0 to partition/apply the image.
+        2. RunSynchronous Order 2: after the WIM is applied to X:\ (Setup applies
+           it before the last windowsPE RunSynchronous completes... it does NOT),
+           so persistence is instead done in the offlineServicing pass below via
+           a tolerant dism call — see that settings block.
+      Both use a cmd.exe drive-letter search, which silently skips absent drives
+      (unlike <DriverPaths>), so there is no install-abort.
+    -->
+    <component name="Microsoft-Windows-Setup"
+               processorArchitecture="amd64"
+               publicKeyToken="31bf3856ad364e35"
+               language="neutral"
+               versionScope="nonSxS"
+               xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State"
+               xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+      <RunSynchronous>
+        <RunSynchronousCommand wcm:action="add">
+          <Order>1</Order>
+          <Description>drvload virtio-scsi so Setup can see the disk</Description>
+          <Path>cmd.exe /c "for %d in (C D E F G H) do @(if exist %d:\vioscsi\2k25\amd64\vioscsi.inf drvload %d:\vioscsi\2k25\amd64\vioscsi.inf) &amp; (if exist %d:\vioscsi\w11\amd64\vioscsi.inf drvload %d:\vioscsi\w11\amd64\vioscsi.inf)"</Path>
+        </RunSynchronousCommand>
+      </RunSynchronous>
+
+      <DiskConfiguration>
+        <Disk wcm:action="add">
+          <DiskID>0</DiskID>
+          <WillWipeDisk>true</WillWipeDisk>
+          <!-- BIOS/MBR single-partition layout (SeaBIOS VM). -->
+          <CreatePartitions>
+            <CreatePartition wcm:action="add">
+              <Order>1</Order>
+              <Type>Primary</Type>
+              <Extend>true</Extend>
+            </CreatePartition>
+          </CreatePartitions>
+          <ModifyPartitions>
+            <ModifyPartition wcm:action="add">
+              <Order>1</Order>
+              <PartitionID>1</PartitionID>
+              <Active>true</Active>
+              <Format>NTFS</Format>
+              <Label>System</Label>
+            </ModifyPartition>
+          </ModifyPartitions>
+        </Disk>
+        <WillShowUI>OnError</WillShowUI>
+      </DiskConfiguration>
+
+      <ImageInstall>
+        <OSImage>
+          <InstallFrom>
+            <!-- The WIM's actual /IMAGE/NAME metadata for Server 2025 Standard
+                 Desktop Experience is the short "SERVERSTANDARD" form, not the
+                 parenthesized display name shown in the picker. Wrong name =
+                 edition-selection GUI (stall). If this proves wrong, switch to
+                 /IMAGE/INDEX with the Standard-Desktop index. -->
+            <MetaData wcm:action="add">
+              <Key>/IMAGE/NAME</Key>
+              <Value>Windows Server 2025 SERVERSTANDARD</Value>
+            </MetaData>
+          </InstallFrom>
+          <InstallTo>
+            <DiskID>0</DiskID>
+            <PartitionID>1</PartitionID>
+          </InstallTo>
+        </OSImage>
+      </ImageInstall>
+
+      <UserData>
+        <!-- No ProductKey element at all: a mismatched key (eval vs retail
+             media) makes the windowsPE pass fail and Setup reboot-loops
+             before its GUI. Keyless relies on /IMAGE/NAME for the edition. -->
+        <AcceptEula>true</AcceptEula>
+        <FullName>Administrator</FullName>
+        <Organization>mayfly</Organization>
+      </UserData>
+    </component>
+
+    <component name="Microsoft-Windows-International-Core-WinPE"
+               processorArchitecture="amd64"
+               publicKeyToken="31bf3856ad364e35"
+               language="neutral"
+               versionScope="nonSxS"
+               xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State">
+      <SetupUILanguage>
+        <UILanguage>en-US</UILanguage>
+      </SetupUILanguage>
+      <InputLocale>en-US</InputLocale>
+      <SystemLocale>en-US</SystemLocale>
+      <UILanguage>en-US</UILanguage>
+      <UserLocale>en-US</UserLocale>
+    </component>
+  </settings>
+
+  <!--
+    offlineServicing runs AFTER Setup applies the WIM to disk, injecting drivers
+    into the applied (offline) Windows image so they are boot-critical on the
+    first real boot. This is the correct place (windowsPE RunSynchronous runs
+    BEFORE apply, so a dism there has no image to target — that is why the
+    earlier attempt still bugchecked 0x7B). PnpCustomizationsNonWinPE is separate
+    from the windowsPE PnP component and does NOT abort the install on missing
+    driver paths, so listing several candidate virtio-CD letters is safe.
+  -->
+  <settings pass="offlineServicing">
+    <component name="Microsoft-Windows-PnpCustomizationsNonWinPE"
+               processorArchitecture="amd64"
+               publicKeyToken="31bf3856ad364e35"
+               language="neutral"
+               versionScope="nonSxS"
+               xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State"
+               xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+      <DriverPaths>
+        <PathAndCredentials wcm:action="add" wcm:keyValue="1">
+          <Path>D:\vioscsi\2k25\amd64</Path>
+        </PathAndCredentials>
+        <PathAndCredentials wcm:action="add" wcm:keyValue="2">
+          <Path>E:\vioscsi\2k25\amd64</Path>
+        </PathAndCredentials>
+        <PathAndCredentials wcm:action="add" wcm:keyValue="3">
+          <Path>F:\vioscsi\2k25\amd64</Path>
+        </PathAndCredentials>
+        <PathAndCredentials wcm:action="add" wcm:keyValue="4">
+          <Path>G:\vioscsi\2k25\amd64</Path>
+        </PathAndCredentials>
+        <PathAndCredentials wcm:action="add" wcm:keyValue="5">
+          <Path>D:\NetKVM\2k25\amd64</Path>
+        </PathAndCredentials>
+        <PathAndCredentials wcm:action="add" wcm:keyValue="6">
+          <Path>E:\NetKVM\2k25\amd64</Path>
+        </PathAndCredentials>
+        <PathAndCredentials wcm:action="add" wcm:keyValue="7">
+          <Path>F:\NetKVM\2k25\amd64</Path>
+        </PathAndCredentials>
+        <PathAndCredentials wcm:action="add" wcm:keyValue="8">
+          <Path>G:\NetKVM\2k25\amd64</Path>
+        </PathAndCredentials>
+        <!-- vioserial (virtio-serial): the transport the QEMU guest agent uses.
+             Without it the agent can't talk to the host, so Packer's
+             qemu_agent=true never learns the VM IP and WinRM times out even
+             though the OS is up. -->
+        <PathAndCredentials wcm:action="add" wcm:keyValue="9">
+          <Path>D:\vioserial\2k25\amd64</Path>
+        </PathAndCredentials>
+        <PathAndCredentials wcm:action="add" wcm:keyValue="10">
+          <Path>E:\vioserial\2k25\amd64</Path>
+        </PathAndCredentials>
+        <PathAndCredentials wcm:action="add" wcm:keyValue="11">
+          <Path>F:\vioserial\2k25\amd64</Path>
+        </PathAndCredentials>
+        <PathAndCredentials wcm:action="add" wcm:keyValue="12">
+          <Path>G:\vioserial\2k25\amd64</Path>
+        </PathAndCredentials>
+      </DriverPaths>
+    </component>
+  </settings>
+
+  <settings pass="specialize">
+    <component name="Microsoft-Windows-Shell-Setup"
+               processorArchitecture="amd64"
+               publicKeyToken="31bf3856ad364e35"
+               language="neutral"
+               versionScope="nonSxS"
+               xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State">
+      <ComputerName>WIN2025TMPL</ComputerName>
+    </component>
+    <component name="Microsoft-Windows-TerminalServices-LocalSessionManager"
+               processorArchitecture="amd64"
+               publicKeyToken="31bf3856ad364e35"
+               language="neutral"
+               versionScope="nonSxS"
+               xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State">
+      <fDenyTSConnections>false</fDenyTSConnections>
+    </component>
+  </settings>
+
+  <settings pass="oobeSystem">
+    <component name="Microsoft-Windows-International-Core"
+               processorArchitecture="amd64"
+               publicKeyToken="31bf3856ad364e35"
+               language="neutral"
+               versionScope="nonSxS"
+               xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State">
+      <InputLocale>en-US</InputLocale>
+      <SystemLocale>en-US</SystemLocale>
+      <UILanguage>en-US</UILanguage>
+      <UserLocale>en-US</UserLocale>
+    </component>
+
+    <component name="Microsoft-Windows-Shell-Setup"
+               processorArchitecture="amd64"
+               publicKeyToken="31bf3856ad364e35"
+               language="neutral"
+               versionScope="nonSxS"
+               xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State">
+      <UserAccounts>
+        <AdministratorPassword>
+          <Value>${winadmin_password}</Value>
+          <PlainText>true</PlainText>
+        </AdministratorPassword>
+      </UserAccounts>
+
+      <AutoLogon>
+        <Enabled>true</Enabled>
+        <LogonCount>1</LogonCount>
+        <Username>Administrator</Username>
+        <Password>
+          <Value>${winadmin_password}</Value>
+          <PlainText>true</PlainText>
+        </Password>
+      </AutoLogon>
+
+      <OOBE>
+        <HideEULAPage>true</HideEULAPage>
+        <HideLocalAccountScreen>true</HideLocalAccountScreen>
+        <HideOnlineAccountScreens>true</HideOnlineAccountScreens>
+        <HideWirelessSetupInOOBE>true</HideWirelessSetupInOOBE>
+        <NetworkLocation>Work</NetworkLocation>
+        <ProtectYourPC>3</ProtectYourPC>
+        <SkipMachineOOBE>true</SkipMachineOOBE>
+        <SkipUserOOBE>true</SkipUserOOBE>
+      </OOBE>
+
+      <FirstLogonCommands>
+        <!-- Locate bootstrap-winrm.ps1 on whichever CD drive holds it, then run it. -->
+        <SynchronousCommand wcm:action="add">
+          <Order>1</Order>
+          <CommandLine>powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "foreach ($d in 'D','E','F','G','H') { if (Test-Path \"$($d):\bootstrap-winrm.ps1\") { Start-Process powershell.exe -ArgumentList '-NoProfile','-ExecutionPolicy','Bypass','-File',\"$($d):\bootstrap-winrm.ps1\" -Wait; break } }"</CommandLine>
+          <Description>Bootstrap WinRM and QEMU guest agent</Description>
+          <RequiresUserInput>false</RequiresUserInput>
+        </SynchronousCommand>
+      </FirstLogonCommands>
+    </component>
+  </settings>
+
+</unattend>

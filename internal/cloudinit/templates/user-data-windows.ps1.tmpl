@@ -1,0 +1,132 @@
+#ps1_sysnative
+$ErrorActionPreference = 'Stop'
+$ProgressPreference = 'SilentlyContinue'
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+
+$dir = 'C:\ProgramData\ephemerd'
+$exe = 'C:\Program Files\ephemerd\ephemerd.exe'
+$failed = $false
+
+# Cloudbase-Init executes user-data more than once (specialize + main passes,
+# sometimes concurrently), which raced on the config/zip files. Serialize with a
+# global mutex so exactly one invocation installs ephemerd; the others see it
+# installed and just make sure the service is running.
+$mutex = New-Object System.Threading.Mutex($false, 'Global\ephemerd-bootstrap')
+try { [void]$mutex.WaitOne() } catch [System.Threading.AbandonedMutexException] { }
+try {
+    New-Item -ItemType Directory -Path $dir -Force | Out-Null
+
+    # winsetup.ps1 is the idempotent host-reconcile step: it ensures the Hyper-V
+    # + Containers roles, grows C: to fill the resized disk, and (re)starts
+    # ephemerd. It is written to disk so BOTH this first boot and an AtStartup
+    # scheduled task can run it — the task is what makes a rebooted node heal
+    # itself instead of coming up with ephemerd Stopped or a half-installed role.
+    $setup = @'
+# mayfly-winsetup — idempotent boot-time reconcile for a Windows CI runner.
+# Invoked on first boot by cloud-init user-data and on every boot by the
+# 'mayfly-winsetup' AtStartup scheduled task. Safe to run repeatedly.
+$ErrorActionPreference = 'Continue'
+$log = 'C:\ProgramData\ephemerd\winsetup.log'
+function Log($m) { "$(Get-Date -Format o) $m" | Out-File -FilePath $log -Append -Encoding utf8 }
+
+# 1. Windows features. ephemerd runs each job as a Hyper-V-isolated container.
+#    Containers provides HNS/HCN; the Hyper-V role registers VMMS and the
+#    NT VIRTUAL MACHINE\Virtual Machines account (SID S-1-5-83-0) that ephemerd
+#    grants each per-job dir to. Without Hyper-V every job dies at icacls with
+#    "No mapping between account names and security IDs was done". Enabling the
+#    role needs a reboot, handled below.
+$reboot = $false
+foreach ($f in 'Containers','Microsoft-Hyper-V') {
+    $state = (Get-WindowsOptionalFeature -Online -FeatureName $f -ErrorAction SilentlyContinue).State
+    if ($state -eq 'Enabled') { continue }
+    if ($state -eq 'EnablePending') { Log "$f enable pending; reboot required"; $reboot = $true; continue }
+    Log "enabling feature $f (state=$state)"
+    try {
+        Enable-WindowsOptionalFeature -Online -FeatureName $f -All -NoRestart -ErrorAction Stop | Out-Null
+        $reboot = $true
+    } catch { Log "enable $f failed: $_" }
+}
+
+# 2. Grow C: to fill the disk mayfly resized the clone to. A trailing recovery
+#    partition (disk0 part2) sits between C: and the new free space and blocks
+#    the extend, so delete any partition after C: that carries no drive letter,
+#    then resize C: to max. Idempotent: a no-op once C: already fills the disk.
+try {
+    Update-Disk -Number 0 -ErrorAction SilentlyContinue
+    $c = Get-Partition -DriveLetter C
+    Get-Partition -DiskNumber $c.DiskNumber |
+        Where-Object { $_.Offset -gt $c.Offset -and -not $_.DriveLetter } |
+        ForEach-Object {
+            Log "removing trailing partition #$($_.PartitionNumber) blocking C: extend"
+            Remove-Partition -DiskNumber $_.DiskNumber -PartitionNumber $_.PartitionNumber -Confirm:$false -ErrorAction SilentlyContinue
+        }
+    $max = (Get-PartitionSupportedSize -DriveLetter C).SizeMax
+    if ($max -gt (Get-Partition -DriveLetter C).Size) {
+        Log "extending C: to $max"
+        Resize-Partition -DriveLetter C -Size $max
+    }
+} catch { Log "disk extend failed: $_" }
+
+# 3. Finish a pending role install with a reboot. The AtStartup task reruns this
+#    script on the way back up, finds the roles Enabled, and starts ephemerd.
+if ($reboot) { Log 'rebooting to finish Windows feature install'; Restart-Computer -Force; return }
+
+# 4. Ensure ephemerd is up. It is Automatic (delayed) with recovery actions, but
+#    can still land Stopped after a reboot if it lost a race with container
+#    networking — start it here so a rebooted node never goes silently dead.
+$svc = Get-Service ephemerd -ErrorAction SilentlyContinue
+if ($svc) {
+    if ($svc.StartType -ne 'Automatic') { Set-Service ephemerd -StartupType Automatic -ErrorAction SilentlyContinue }
+    if ($svc.Status -ne 'Running') { Log 'starting ephemerd'; Start-Service ephemerd -ErrorAction SilentlyContinue }
+} else { Log 'ephemerd service not installed yet' }
+'@
+    Set-Content -Path "$dir\winsetup.ps1" -Value $setup -Encoding UTF8
+
+    # Persistent AtStartup watchdog: reruns winsetup on every boot as SYSTEM so a
+    # pending role install completes, the disk stays grown, and — above all —
+    # ephemerd is running after any reboot. -Force makes re-registration a no-op.
+    $action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument '-NoProfile -ExecutionPolicy Bypass -File "C:\ProgramData\ephemerd\winsetup.ps1"'
+    $trigger = New-ScheduledTaskTrigger -AtStartup
+    $principal = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest
+    $tsettings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable
+    Register-ScheduledTask -TaskName 'mayfly-winsetup' -Action $action -Trigger $trigger -Principal $principal -Settings $tsettings -Force | Out-Null
+
+    if (-not (Test-Path $exe)) {
+        [System.IO.File]::WriteAllBytes("$dir\config.toml", [System.Convert]::FromBase64String('{{.EphemerdConfigBase64}}'))
+        [System.IO.File]::WriteAllBytes("$dir\app.pem", [System.Convert]::FromBase64String('{{.GitHubAppPEMBase64}}'))
+
+        $zip = Join-Path $env:TEMP 'ephemerd.zip'
+        $ext = Join-Path $env:TEMP 'ephemerd-extract'
+        Invoke-WebRequest -UseBasicParsing -Uri '{{.EphemerdBinaryURL}}' -OutFile $zip
+        Expand-Archive -Path $zip -DestinationPath $ext -Force
+
+        & "$ext\ephemerd.exe" install
+        if ($LASTEXITCODE -ne 0) { throw "ephemerd install exited with $LASTEXITCODE" }
+    }
+
+    # Auto-restart on failure: on first boot ephemerd can start before its deps
+    # (HNS / container networking) are ready and exit; recovery restarts it until
+    # it sticks. failureflag=1 makes recovery trigger on any non-graceful exit,
+    # not just a crash. delayed-auto starts it a bit after boot so HNS/Hyper-V
+    # are up first — the mismatch that left rebooted nodes Stopped.
+    & sc.exe failure ephemerd reset= 86400 actions= restart/5000/restart/10000/restart/30000 | Out-Null
+    & sc.exe failureflag ephemerd 1 | Out-Null
+    & sc.exe config ephemerd start= delayed-auto | Out-Null
+
+    # install sets the service to Automatic; run the reconcile now so this first
+    # boot grows the disk, ensures the roles, and starts ephemerd without waiting
+    # for a reboot. On a template that still lacks Hyper-V this reboots to finish
+    # the role; the watchdog then completes setup on the next boot.
+    Set-Service ephemerd -StartupType Automatic -ErrorAction SilentlyContinue
+    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$dir\winsetup.ps1"
+} catch {
+    New-Item -ItemType Directory -Path $dir -Force | Out-Null
+    "$(Get-Date -Format o) bootstrap failed: $_" | Out-File -FilePath "$dir\bootstrap-error.log" -Append -Encoding utf8
+    $failed = $true
+} finally {
+    try { $mutex.ReleaseMutex() } catch { }
+    $mutex.Dispose()
+}
+
+if ($failed) { exit 1 }
+exit 0

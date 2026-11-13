@@ -1,0 +1,6 @@
+# Assets embedded with go:embed ship to Linux VMs byte for byte, and go:embed
+# reads the working copy. Pin them to LF so a Windows checkout
+# (core.autocrlf=true) cannot turn a script's shebang into "/bin/sh\r".
+*.sh text eol=lf
+internal/registrycache/assets/** text eol=lf
+internal/monitoring/assets/** text eol=lf

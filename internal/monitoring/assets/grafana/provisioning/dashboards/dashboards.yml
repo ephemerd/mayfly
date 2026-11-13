@@ -1,0 +1,15 @@
+# Grafana dashboard provider. Loads JSON dashboards baked onto the VM at
+# /var/lib/grafana-dashboards (mounted read-only at /var/lib/grafana/dashboards).
+apiVersion: 1
+
+providers:
+  - name: ephemerd
+    orgId: 1
+    folder: ""
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: false
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: true

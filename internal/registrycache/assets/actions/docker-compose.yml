@@ -1,0 +1,39 @@
+# ephemerd cache VM — writable registry behind the LAN GitHub Actions cache
+#
+# A stock `registry:2` in normal (NOT proxy) mode. ephemerd's [actions_cache]
+# shim stores each Actions cache entry here as an OCI artifact: one blob per
+# uploaded block plus a manifest tagged by the cache key's hash (ephemerd #215).
+# It has to be a separate instance from the pull-through cache next to it: a
+# registry with a proxy remote URL refuses every push.
+#
+# Its own Compose project (/opt/actions-cache) so the two registries on this
+# VM have independent lifecycles: garbage-collecting or resetting this one
+# never interrupts image pulls through the pull-through cache.
+#
+# Env comes from the project-dir .env, which mayfly writes (see ActionsEnvPath):
+#   ACTIONS_REGISTRY_PORT     LAN port to publish (default 5001)
+#   ACTIONS_CACHE_MAX_GB      hard disk cap, enforced by the gc timer
+#
+# Authenticated with htpasswd (written by mayfly, bcrypt): job containers can
+# route to this VM, and only ephemerd may write. Deletes are enabled because
+# ephemerd evicts least-recently-used entries per repo by deleting manifests;
+# the weekly gc timer then reclaims the unreferenced blobs.
+#
+# No top-level `version:` key — Compose v2 spec.
+
+services:
+  actions-cache:
+    image: registry:2
+    container_name: actions-cache
+    restart: unless-stopped
+    environment:
+      REGISTRY_AUTH: htpasswd
+      REGISTRY_AUTH_HTPASSWD_REALM: ephemerd-actions-cache
+      REGISTRY_AUTH_HTPASSWD_PATH: /auth/htpasswd
+      REGISTRY_STORAGE_DELETE_ENABLED: "true"
+      REGISTRY_LOG_LEVEL: ${REGISTRY_LOG_LEVEL:-info}
+    volumes:
+      - /var/lib/actions-cache:/var/lib/registry
+      - /opt/actions-cache/htpasswd:/auth/htpasswd:ro
+    ports:
+      - ${ACTIONS_REGISTRY_PORT:-5001}:5000

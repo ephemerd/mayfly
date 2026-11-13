@@ -1,0 +1,10 @@
+[Unit]
+Description=Garbage-collect the writable GitHub Actions cache registry
+Documentation=https://github.com/ephemerd/mayfly
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=/opt/actions-cache/.env
+ExecStart=/usr/local/sbin/actions-cache-gc

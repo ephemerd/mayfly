@@ -1,0 +1,26 @@
+#cloud-config
+hostname: {{.Hostname}}
+manage_etc_hosts: true
+
+packages:
+  - qemu-guest-agent
+  - ca-certificates
+  - curl
+
+package_update: true
+package_upgrade: false
+
+write_files:
+{{- range .Files}}
+  - path: {{.Path}}
+    owner: root:root
+    permissions: '{{.Mode}}'
+    encoding: base64
+    content: {{.ContentBase64}}
+{{- end}}
+
+runcmd:
+  - systemctl enable --now qemu-guest-agent
+{{- range .Commands}}
+  - {{.}}
+{{- end}}

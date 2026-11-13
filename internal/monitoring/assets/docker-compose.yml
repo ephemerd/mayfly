@@ -1,0 +1,62 @@
+# ephemerd monitoring stack — Prometheus + Grafana via Docker Compose
+#
+# On-VM host layout assumed by this file (cloud-init must create these):
+#
+#   /etc/prometheus/prometheus.yml            -> ro bind into prometheus container
+#   /etc/prometheus/targets/                  -> ro bind (file_sd dir); a Go program
+#                                                writes runners.json here
+#   /etc/grafana/provisioning/                -> ro bind into grafana container
+#   /var/lib/grafana-dashboards/              -> ro bind mounted at
+#                                                /var/lib/grafana/dashboards
+#
+# Named volumes (managed by Docker, persist TSDB and Grafana DB):
+#   prometheus-data -> /prometheus            (Prometheus TSDB)
+#   grafana-data    -> /var/lib/grafana       (Grafana sqlite/state)
+#
+# Ports:
+#   127.0.0.1:9090 -> Prometheus (localhost only; Grafana reaches it over the
+#                     compose network at http://prometheus:9090)
+#   0.0.0.0:3000   -> Grafana UI (LAN-accessible)
+#
+# Env consumed from the project-dir .env (mayfly writes /opt/monitoring/.env):
+#   GRAFANA_ADMIN_PASSWORD (defaults to "admin" if unset)
+#   PROM_RETENTION         (Prometheus TSDB retention, defaults to "15d")
+#
+# No top-level `version:` key — Compose v2 spec.
+
+services:
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=${PROM_RETENTION:-15d}
+      - --web.enable-lifecycle
+    volumes:
+      - /etc/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - /etc/prometheus/targets:/etc/prometheus/targets:ro
+      - prometheus-data:/prometheus
+    ports:
+      - 127.0.0.1:9090:9090
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+    volumes:
+      - /etc/grafana/provisioning:/etc/grafana/provisioning:ro
+      - /var/lib/grafana-dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - 3000:3000
+
+volumes:
+  prometheus-data:
+  grafana-data:

@@ -1,0 +1,44 @@
+#cloud-config
+hostname: {{.Hostname}}
+manage_etc_hosts: true
+
+packages:
+  - qemu-guest-agent
+  - curl
+  - ca-certificates
+  - iptables
+  - jq
+
+package_update: true
+package_upgrade: false
+
+users:
+  - name: ephemerd
+    system: true
+    shell: /usr/sbin/nologin
+    homedir: /var/lib/ephemerd
+
+write_files:
+  - path: /var/lib/ephemerd/config.toml
+    owner: root:root
+    permissions: '0600'
+    content: |
+{{.EphemerdConfigIndented}}
+
+  - path: /etc/ephemerd/app.pem
+    owner: root:root
+    permissions: '0600'
+    encoding: base64
+    content: {{.GitHubAppPEMBase64}}
+
+runcmd:
+  - systemctl enable --now qemu-guest-agent
+  - install -d -m 0700 /var/lib/ephemerd
+  - install -d -m 0755 /etc/ephemerd
+  - curl -fsSL -o /tmp/ephemerd.tar.gz {{.EphemerdBinaryURL}}
+  - tar -C /usr/local/bin -xzf /tmp/ephemerd.tar.gz ephemerd
+  - chmod 0755 /usr/local/bin/ephemerd
+  - rm -f /tmp/ephemerd.tar.gz
+  - /usr/local/bin/ephemerd install
+  - systemctl daemon-reload
+  - systemctl enable --now ephemerd

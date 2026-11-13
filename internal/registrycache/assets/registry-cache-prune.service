@@ -1,0 +1,10 @@
+[Unit]
+Description=Prune the container registry pull-through cache when it exceeds its size cap
+Documentation=https://github.com/ephemerd/mayfly
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=/opt/registry-cache/.env
+ExecStart=/usr/local/sbin/registry-cache-prune
