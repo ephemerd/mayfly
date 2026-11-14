@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"io"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -26,6 +27,7 @@ func newCaptureInstance(id int) *captureInstance {
 }
 
 func (c *captureInstance) ID() int                                      { return c.id }
+func (c *captureInstance) Handle() string                               { return strconv.Itoa(c.id) }
 func (c *captureInstance) SetResources(context.Context, int, int) error { return nil }
 func (c *captureInstance) ResizeDisk(context.Context, int) error        { return nil }
 func (c *captureInstance) MoveDisk(context.Context, string) error      { return nil }

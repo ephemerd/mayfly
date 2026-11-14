@@ -36,9 +36,12 @@ type ExecStatus struct {
 // pass compares against recorded state. A zero Cores/MemMB means the backend
 // did not populate the field (don't invent drift from missing data).
 type InstanceInfo struct {
-	ID    int
-	Cores int
-	MemMB int
+	ID int
+	// Handle is the backend's opaque instance identity as a string (Proxmox: the
+	// decimal VMID; cloud backends: their native id). See Instance.Handle.
+	Handle string
+	Cores  int
+	MemMB  int
 }
 
 // TemplateSpec parameterizes EnsureTemplate. It matches the historical
@@ -137,6 +140,13 @@ type HostPCI struct {
 type Instance interface {
 	// ID returns the backend instance id (Proxmox VMID).
 	ID() int
+
+	// Handle returns the backend's opaque instance identity as a string. For
+	// Proxmox this is the decimal VMID; for cloud backends it is the provider's
+	// native id (e.g. AWS "i-0abc…"). It is the forward-looking identity that
+	// works across backends where an int VMID does not. ID() is retained during
+	// the migration for the Proxmox int paths.
+	Handle() string
 
 	// SetResources applies cores/memory. On Proxmox this is a config write that
 	// takes effect on next boot (the engine power-cycles around it).

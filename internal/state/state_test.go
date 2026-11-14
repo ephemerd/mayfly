@@ -3,6 +3,7 @@ package state
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -124,6 +125,132 @@ func TestRoundTrip(t *testing.T) {
 	if m101.VLANTag != 42 || !m101.Firewall {
 		t.Fatalf("vlan_tag/firewall lost in round-trip: got {vlan:%d fw:%v}, want {42 true}", m101.VLANTag, m101.Firewall)
 	}
+}
+
+// TestMemberHandleBackfill proves the Handle rail is backward compatible:
+// a member recorded with only a VMID (every state file written before Handle
+// existed) comes back from Load with Handle == strconv.Itoa(VMID), and a
+// member written WITH a Handle keeps it verbatim.
+func TestMemberHandleBackfill(t *testing.T) {
+	t.Run("legacy member without handle is backfilled from vmid", func(t *testing.T) {
+		setHome(t)
+		orig := &Store{Pools: []Pool{{
+			Name:    "linux-amd64",
+			Members: []Member{{VMID: 101, Hostname: "mfl-linux-amd64-101", PVENode: "pve1"}},
+		}}}
+		if err := orig.Save(); err != nil {
+			t.Fatal(err)
+		}
+		// Handle is omitempty, so the file on disk must look exactly like a
+		// pre-Handle state file: no "handle:" key at all.
+		p, _ := Path()
+		b, err := os.ReadFile(p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(string(b), "handle:") {
+			t.Fatalf("empty Handle leaked into state file:\n%s", b)
+		}
+
+		got, err := Load()
+		if err != nil {
+			t.Fatal(err)
+		}
+		pool, ok := got.FindPool("linux-amd64")
+		if !ok {
+			t.Fatal("FindPool(linux-amd64) not found")
+		}
+		m, ok := pool.FindMember(101)
+		if !ok {
+			t.Fatal("FindMember(101) not found")
+		}
+		if m.Handle != "101" {
+			t.Fatalf("Handle = %q, want %q (backfilled from VMID)", m.Handle, "101")
+		}
+		if m.VMID != 101 {
+			t.Fatalf("VMID changed by backfill: %d", m.VMID)
+		}
+	})
+
+	t.Run("raw pre-handle yaml is backfilled", func(t *testing.T) {
+		// A hand-written file in the exact shape mayfly wrote before Handle
+		// existed, so the test does not depend on Save's own omitempty behavior.
+		dir := setHome(t)
+		p := filepath.Join(dir, ".mayfly", "state.yaml")
+		if err := os.MkdirAll(filepath.Dir(p), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		legacy := "pools:\n" +
+			"    - name: linux-amd64\n" +
+			"      hostname: ci.example.com\n" +
+			"      tunnel_id: tun-1\n" +
+			"      token: tok-1\n" +
+			"      secret: sec-1\n" +
+			"      members:\n" +
+			"        - vmid: 7\n" +
+			"          hostname: mfl-linux-amd64-7\n" +
+			"          pve_node: pve1\n" +
+			"          os: linux\n" +
+			"          arch: amd64\n" +
+			"          cores: 2\n" +
+			"          memory_mb: 2048\n" +
+			"          disk_gb: 20\n" +
+			"          template: tmpl\n" +
+			"          config_hash: h\n" +
+			"          created_at: 2026-07-11T12:00:00Z\n"
+		if err := os.WriteFile(p, []byte(legacy), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		got, err := Load()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(got.Pools) != 1 || len(got.Pools[0].Members) != 1 {
+			t.Fatalf("unexpected store shape: %+v", got)
+		}
+		m := got.Pools[0].Members[0]
+		if m.VMID != 7 || m.Handle != "7" {
+			t.Fatalf("got {vmid:%d handle:%q}, want {7 \"7\"}", m.VMID, m.Handle)
+		}
+	})
+
+	t.Run("explicit handle round-trips unchanged", func(t *testing.T) {
+		setHome(t)
+		orig := &Store{Pools: []Pool{{
+			Name: "linux-amd64",
+			Members: []Member{
+				{VMID: 101, Handle: "101", Hostname: "mfl-linux-amd64-101"},
+				// A non-numeric handle (what a cloud backend would record) must
+				// never be overwritten by the backfill.
+				{VMID: 102, Handle: "i-0abc123", Hostname: "mfl-linux-amd64-102"},
+			},
+		}}}
+		if err := orig.Save(); err != nil {
+			t.Fatal(err)
+		}
+		got, err := Load()
+		if err != nil {
+			t.Fatal(err)
+		}
+		pool, ok := got.FindPool("linux-amd64")
+		if !ok {
+			t.Fatal("FindPool(linux-amd64) not found")
+		}
+		m101, ok := pool.FindMember(101)
+		if !ok {
+			t.Fatal("FindMember(101) not found")
+		}
+		if m101.Handle != "101" {
+			t.Fatalf("Handle = %q, want %q", m101.Handle, "101")
+		}
+		m102, ok := pool.FindMember(102)
+		if !ok {
+			t.Fatal("FindMember(102) not found")
+		}
+		if m102.Handle != "i-0abc123" {
+			t.Fatalf("Handle = %q, want %q", m102.Handle, "i-0abc123")
+		}
+	})
 }
 
 func TestFindAndRemove(t *testing.T) {

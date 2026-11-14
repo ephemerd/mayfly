@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -130,7 +131,12 @@ func (p *Pool) RemoveMemberByHost(host string) bool {
 // stored as plain values (not hashes) so the state file stays readable and
 // the planner can print precise transitions like "cores 4 → 8".
 type Member struct {
-	VMID     int    `yaml:"vmid"`
+	VMID int `yaml:"vmid"`
+	// Handle is the backend's opaque instance identity (Proxmox: the decimal
+	// VMID as a string; cloud backends: their native id). Empty in state files
+	// written before this field; Load backfills it from VMID so legacy state
+	// keeps working unchanged.
+	Handle   string `yaml:"handle,omitempty"`
 	Hostname string `yaml:"hostname"`
 	PVENode  string `yaml:"pve_node"`
 	IP       string `yaml:"ip,omitempty"` // LAN IPv4 (guest-agent discovered); scrape target
@@ -196,6 +202,15 @@ func Load() (*Store, error) {
 	var s Store
 	if err := yaml.Unmarshal(b, &s); err != nil {
 		return nil, fmt.Errorf("parse %s: %w", p, err)
+	}
+	// Backfill Handle for members recorded before the field existed, so every
+	// loaded member carries both identities regardless of state-file vintage.
+	for i := range s.Pools {
+		for j := range s.Pools[i].Members {
+			if m := &s.Pools[i].Members[j]; m.Handle == "" {
+				m.Handle = strconv.Itoa(m.VMID)
+			}
+		}
 	}
 	return &s, nil
 }

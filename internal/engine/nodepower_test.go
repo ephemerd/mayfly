@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -35,6 +36,8 @@ type fakeInstance struct {
 func (f *fakeInstance) rec(name string) { f.calls = append(f.calls, name) }
 
 func (f *fakeInstance) ID() int { return 100 }
+
+func (f *fakeInstance) Handle() string { return strconv.Itoa(f.ID()) }
 
 func (f *fakeInstance) SetResources(_ context.Context, cores, memoryMB int) error {
 	f.rec("SetResources")

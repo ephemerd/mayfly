@@ -286,9 +286,10 @@ func (p *Proxmox) ListInstances(ctx context.Context, node string) ([]InstanceInf
 	out := make([]InstanceInfo, 0, len(vms))
 	for _, vm := range vms {
 		out = append(out, InstanceInfo{
-			ID:    int(vm.VMID),
-			Cores: vm.CPUs,
-			MemMB: int(vm.MaxMem / (1 << 20)),
+			ID:     int(vm.VMID),
+			Handle: strconv.Itoa(int(vm.VMID)),
+			Cores:  vm.CPUs,
+			MemMB:  int(vm.MaxMem / (1 << 20)),
 		})
 	}
 	return out, nil
@@ -326,6 +327,10 @@ type proxmoxInstance struct {
 }
 
 func (i *proxmoxInstance) ID() int { return int(i.vm.VMID) }
+
+// Handle is the decimal VMID: Proxmox's instance identity rendered in the
+// backend-neutral string form the Instance interface requires.
+func (i *proxmoxInstance) Handle() string { return strconv.Itoa(int(i.vm.VMID)) }
 
 func (i *proxmoxInstance) SetResources(ctx context.Context, cores, memoryMB int) error {
 	task, err := i.vm.Config(ctx,
