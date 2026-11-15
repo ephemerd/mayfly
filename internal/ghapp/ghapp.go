@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/ephemerd/mayfly/internal/config"
+	"github.com/luthermonson/mayfly/internal/config"
 )
 
 type Credentials struct {

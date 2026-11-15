@@ -10,7 +10,7 @@ import (
 
 	"github.com/luthermonson/go-proxmox"
 
-	"github.com/ephemerd/mayfly/internal/pve"
+	"github.com/luthermonson/mayfly/internal/pve"
 )
 
 // Task-wait budgets, preserved verbatim from the engine's historical Proxmox

@@ -11,9 +11,9 @@ import (
 
 	gossh "golang.org/x/crypto/ssh"
 
-	"github.com/ephemerd/mayfly/internal/config"
-	"github.com/ephemerd/mayfly/internal/ephemerd"
-	"github.com/ephemerd/mayfly/internal/state"
+	"github.com/luthermonson/mayfly/internal/config"
+	"github.com/luthermonson/mayfly/internal/ephemerd"
+	"github.com/luthermonson/mayfly/internal/state"
 )
 
 // Darwin pool members are bare metal (Mac minis): no hypervisor channel

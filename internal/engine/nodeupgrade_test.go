@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ephemerd/mayfly/internal/config"
+	"github.com/luthermonson/mayfly/internal/config"
 )
 
 // ephemerd lives at an absolute path on every platform: /usr/local/bin is not

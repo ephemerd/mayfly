@@ -11,11 +11,11 @@ import (
 
 	"github.com/urfave/cli/v3"
 
-	"github.com/ephemerd/mayfly/internal/config"
-	"github.com/ephemerd/mayfly/internal/engine"
-	"github.com/ephemerd/mayfly/internal/ghapp"
-	"github.com/ephemerd/mayfly/internal/provider"
-	"github.com/ephemerd/mayfly/internal/state"
+	"github.com/luthermonson/mayfly/internal/config"
+	"github.com/luthermonson/mayfly/internal/engine"
+	"github.com/luthermonson/mayfly/internal/ghapp"
+	"github.com/luthermonson/mayfly/internal/provider"
+	"github.com/luthermonson/mayfly/internal/state"
 )
 
 // Every subcommand below is transport-agnostic: it names a node, gets a

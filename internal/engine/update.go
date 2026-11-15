@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/ephemerd/mayfly/internal/config"
-	"github.com/ephemerd/mayfly/internal/ephemerd"
-	"github.com/ephemerd/mayfly/internal/provider"
-	"github.com/ephemerd/mayfly/internal/state"
+	"github.com/luthermonson/mayfly/internal/config"
+	"github.com/luthermonson/mayfly/internal/ephemerd"
+	"github.com/luthermonson/mayfly/internal/provider"
+	"github.com/luthermonson/mayfly/internal/state"
 )
 
 // updatePool applies in-place changes to a pool: an optional DNS hostname

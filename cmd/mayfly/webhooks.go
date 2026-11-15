@@ -10,10 +10,10 @@ import (
 
 	"github.com/urfave/cli/v3"
 
-	"github.com/ephemerd/mayfly/internal/config"
-	"github.com/ephemerd/mayfly/internal/ghapp"
-	"github.com/ephemerd/mayfly/internal/github"
-	"github.com/ephemerd/mayfly/internal/state"
+	"github.com/luthermonson/mayfly/internal/config"
+	"github.com/luthermonson/mayfly/internal/ghapp"
+	"github.com/luthermonson/mayfly/internal/github"
+	"github.com/luthermonson/mayfly/internal/state"
 )
 
 func webhooksCmd() *cli.Command {

@@ -7,9 +7,9 @@ import (
 
 	"github.com/urfave/cli/v3"
 
-	"github.com/ephemerd/mayfly/internal/config"
-	"github.com/ephemerd/mayfly/internal/engine"
-	"github.com/ephemerd/mayfly/internal/pve"
+	"github.com/luthermonson/mayfly/internal/config"
+	"github.com/luthermonson/mayfly/internal/engine"
+	"github.com/luthermonson/mayfly/internal/pve"
 )
 
 func templateSyncCmd() *cli.Command {

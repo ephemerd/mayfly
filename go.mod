@@ -1,4 +1,4 @@
-module github.com/ephemerd/mayfly
+module github.com/luthermonson/mayfly
 
 go 1.26.2
 

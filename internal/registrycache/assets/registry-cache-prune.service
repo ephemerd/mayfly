@@ -1,6 +1,6 @@
 [Unit]
 Description=Prune the container registry pull-through cache when it exceeds its size cap
-Documentation=https://github.com/ephemerd/mayfly
+Documentation=https://github.com/luthermonson/mayfly
 After=docker.service
 Requires=docker.service
 

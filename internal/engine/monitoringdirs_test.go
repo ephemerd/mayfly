@@ -4,9 +4,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ephemerd/mayfly/internal/cloudinit"
-	"github.com/ephemerd/mayfly/internal/config"
-	"github.com/ephemerd/mayfly/internal/registrycache"
+	"github.com/luthermonson/mayfly/internal/cloudinit"
+	"github.com/luthermonson/mayfly/internal/config"
+	"github.com/luthermonson/mayfly/internal/registrycache"
 )
 
 // TestGuestParentDirs_DedupesAndSorts pins the shape updateMonitoring depends

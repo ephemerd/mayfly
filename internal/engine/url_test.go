@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ephemerd/mayfly/internal/config"
+	"github.com/luthermonson/mayfly/internal/config"
 )
 
 func TestResolveEphemerdURL(t *testing.T) {

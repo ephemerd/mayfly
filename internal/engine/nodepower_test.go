@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ephemerd/mayfly/internal/provider"
-	"github.com/ephemerd/mayfly/internal/state"
+	"github.com/luthermonson/mayfly/internal/provider"
+	"github.com/luthermonson/mayfly/internal/state"
 )
 
 // fakeInstance is a provider.Instance that records the order of the lifecycle

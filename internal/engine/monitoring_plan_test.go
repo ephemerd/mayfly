@@ -3,9 +3,9 @@ package engine
 import (
 	"testing"
 
-	"github.com/ephemerd/mayfly/internal/config"
-	"github.com/ephemerd/mayfly/internal/monitoring"
-	"github.com/ephemerd/mayfly/internal/state"
+	"github.com/luthermonson/mayfly/internal/config"
+	"github.com/luthermonson/mayfly/internal/monitoring"
+	"github.com/luthermonson/mayfly/internal/state"
 )
 
 func monCfg() *config.Config {

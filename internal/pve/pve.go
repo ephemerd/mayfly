@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/luthermonson/go-proxmox"
-	"github.com/ephemerd/mayfly/internal/config"
+	"github.com/luthermonson/mayfly/internal/config"
 )
 
 const (

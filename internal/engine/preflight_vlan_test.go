@@ -8,9 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ephemerd/mayfly/internal/config"
-	"github.com/ephemerd/mayfly/internal/provider"
-	"github.com/ephemerd/mayfly/internal/pve"
+	"github.com/luthermonson/mayfly/internal/config"
+	"github.com/luthermonson/mayfly/internal/provider"
+	"github.com/luthermonson/mayfly/internal/pve"
 )
 
 // fakeProvider is a stub provider.Provider whose only meaningful method is

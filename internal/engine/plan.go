@@ -9,12 +9,12 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/ephemerd/mayfly/internal/config"
-	"github.com/ephemerd/mayfly/internal/ephemerd"
-	"github.com/ephemerd/mayfly/internal/modelserver"
-	"github.com/ephemerd/mayfly/internal/monitoring"
-	"github.com/ephemerd/mayfly/internal/registrycache"
-	"github.com/ephemerd/mayfly/internal/state"
+	"github.com/luthermonson/mayfly/internal/config"
+	"github.com/luthermonson/mayfly/internal/ephemerd"
+	"github.com/luthermonson/mayfly/internal/modelserver"
+	"github.com/luthermonson/mayfly/internal/monitoring"
+	"github.com/luthermonson/mayfly/internal/registrycache"
+	"github.com/luthermonson/mayfly/internal/state"
 )
 
 // Plan is the computed difference between the TOML-declared fleet and the

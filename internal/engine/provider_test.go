@@ -3,8 +3,8 @@ package engine
 import (
 	"testing"
 
-	"github.com/ephemerd/mayfly/internal/config"
-	"github.com/ephemerd/mayfly/internal/provider"
+	"github.com/luthermonson/mayfly/internal/config"
+	"github.com/luthermonson/mayfly/internal/provider"
 )
 
 // newSelectorEngine builds a bare Engine with just the config + provider cache

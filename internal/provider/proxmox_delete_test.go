@@ -9,8 +9,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/ephemerd/mayfly/internal/config"
-	"github.com/ephemerd/mayfly/internal/pve"
+	"github.com/luthermonson/mayfly/internal/config"
+	"github.com/luthermonson/mayfly/internal/pve"
 )
 
 // fakePVE is a minimal Proxmox API stand-in that records the ordered sequence

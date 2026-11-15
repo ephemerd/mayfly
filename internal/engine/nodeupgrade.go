@@ -25,7 +25,7 @@ import (
 	"fmt"
 	"regexp"
 
-	"github.com/ephemerd/mayfly/internal/config"
+	"github.com/luthermonson/mayfly/internal/config"
 )
 
 // unixExe is where ephemerd installs on linux and darwin. Always absolute:

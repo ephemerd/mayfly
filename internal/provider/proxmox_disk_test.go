@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ephemerd/mayfly/internal/config"
-	"github.com/ephemerd/mayfly/internal/pve"
+	"github.com/luthermonson/mayfly/internal/config"
+	"github.com/luthermonson/mayfly/internal/pve"
 )
 
 // diskPVE answers the disk calls: a move_disk or resize returns a task whose

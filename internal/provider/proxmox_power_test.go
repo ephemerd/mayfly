@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ephemerd/mayfly/internal/config"
-	"github.com/ephemerd/mayfly/internal/pve"
+	"github.com/luthermonson/mayfly/internal/config"
+	"github.com/luthermonson/mayfly/internal/pve"
 )
 
 // powerPVE is a stateful Proxmox stand-in for power transitions. Unlike

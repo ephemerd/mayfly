@@ -10,12 +10,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ephemerd/mayfly/internal/cloudinit"
-	"github.com/ephemerd/mayfly/internal/config"
-	"github.com/ephemerd/mayfly/internal/provider"
-	"github.com/ephemerd/mayfly/internal/pve"
-	"github.com/ephemerd/mayfly/internal/registrycache"
-	"github.com/ephemerd/mayfly/internal/state"
+	"github.com/luthermonson/mayfly/internal/cloudinit"
+	"github.com/luthermonson/mayfly/internal/config"
+	"github.com/luthermonson/mayfly/internal/provider"
+	"github.com/luthermonson/mayfly/internal/pve"
+	"github.com/luthermonson/mayfly/internal/registrycache"
+	"github.com/luthermonson/mayfly/internal/state"
 )
 
 // registryCacheTag marks the dedicated cache VM in Proxmox, the same way

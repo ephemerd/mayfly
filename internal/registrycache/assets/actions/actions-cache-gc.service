@@ -1,6 +1,6 @@
 [Unit]
 Description=Garbage-collect the writable GitHub Actions cache registry
-Documentation=https://github.com/ephemerd/mayfly
+Documentation=https://github.com/luthermonson/mayfly
 After=docker.service
 Requires=docker.service
 

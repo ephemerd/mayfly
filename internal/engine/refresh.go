@@ -10,9 +10,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ephemerd/mayfly/internal/config"
-	"github.com/ephemerd/mayfly/internal/provider"
-	"github.com/ephemerd/mayfly/internal/state"
+	"github.com/luthermonson/mayfly/internal/config"
+	"github.com/luthermonson/mayfly/internal/provider"
+	"github.com/luthermonson/mayfly/internal/state"
 )
 
 // RefreshResult describes drift found between recorded state and live infra.

@@ -50,9 +50,9 @@ If you've ever wanted GitHub-hosted-runner ergonomics on hardware you own — Li
 **Install**
 
 ```sh
-go install github.com/ephemerd/mayfly/cmd/mayfly@latest
+go install github.com/luthermonson/mayfly/cmd/mayfly@latest
 # or build from source:
-git clone https://github.com/ephemerd/mayfly
+git clone https://github.com/luthermonson/mayfly
 cd mayfly && go build -o mayfly ./cmd/mayfly
 ```
 

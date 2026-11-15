@@ -7,12 +7,12 @@ import (
 	"slices"
 	"time"
 
-	"github.com/ephemerd/mayfly/internal/cloudinit"
-	"github.com/ephemerd/mayfly/internal/config"
-	"github.com/ephemerd/mayfly/internal/modelserver"
-	"github.com/ephemerd/mayfly/internal/provider"
-	"github.com/ephemerd/mayfly/internal/pve"
-	"github.com/ephemerd/mayfly/internal/state"
+	"github.com/luthermonson/mayfly/internal/cloudinit"
+	"github.com/luthermonson/mayfly/internal/config"
+	"github.com/luthermonson/mayfly/internal/modelserver"
+	"github.com/luthermonson/mayfly/internal/provider"
+	"github.com/luthermonson/mayfly/internal/pve"
+	"github.com/luthermonson/mayfly/internal/state"
 )
 
 // modelServerTag marks the model-server VM in Proxmox.

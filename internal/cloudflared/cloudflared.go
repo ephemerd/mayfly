@@ -13,7 +13,7 @@ import (
 	"github.com/cloudflare/cloudflare-go/v4/option"
 	"github.com/cloudflare/cloudflare-go/v4/zero_trust"
 
-	"github.com/ephemerd/mayfly/internal/config"
+	"github.com/luthermonson/mayfly/internal/config"
 )
 
 // Provider provisions pool-scoped Cloudflare resources: one tunnel + one DNS

@@ -7,11 +7,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ephemerd/mayfly/internal/config"
-	"github.com/ephemerd/mayfly/internal/ghapp"
-	"github.com/ephemerd/mayfly/internal/monitoring"
-	"github.com/ephemerd/mayfly/internal/provider"
-	"github.com/ephemerd/mayfly/internal/state"
+	"github.com/luthermonson/mayfly/internal/config"
+	"github.com/luthermonson/mayfly/internal/ghapp"
+	"github.com/luthermonson/mayfly/internal/monitoring"
+	"github.com/luthermonson/mayfly/internal/provider"
+	"github.com/luthermonson/mayfly/internal/state"
 )
 
 // ipInstance is a captureInstance that reports a LAN address, like a freshly

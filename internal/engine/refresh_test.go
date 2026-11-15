@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ephemerd/mayfly/internal/config"
-	"github.com/ephemerd/mayfly/internal/state"
+	"github.com/luthermonson/mayfly/internal/config"
+	"github.com/luthermonson/mayfly/internal/state"
 )
 
 func TestReconcileVM(t *testing.T) {
