@@ -14,6 +14,14 @@
 
 [proxmox]
 url = "https://pve.example.com:8006/api2/json"
+# endpoints: OTHER nodes of the same cluster, for failover only. url stays the
+# primary; these are tried in order when it is unreachable or returns a gateway
+# error (502/503/504/595/596). Any node in a quorate cluster serves the whole
+# API and tokens are cluster-wide, so a single down node is routed around
+# instead of blocking cluster-wide calls / aborting an apply. Empty = single
+# endpoint (unchanged).
+# endpoints = ["https://pve2.example.com:8006/api2/json", "https://pve3.example.com:8006/api2/json"]
+# endpoint_failure_threshold = 3  # consecutive transport failures before an endpoint is benched (0 = default 3)
 token_id = "mayfly@pve!mayfly"
 secret = "00000000-0000-0000-0000-000000000000"
 node = "pve1"                  # default PVE node; pools can override

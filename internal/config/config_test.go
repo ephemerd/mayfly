@@ -115,6 +115,57 @@ cloud_init_storage = "local-dir"
 	}
 }
 
+func TestProxmoxEndpointsParse(t *testing.T) {
+	const src = `
+[proxmox]
+url = "https://pve1:8006/api2/json"
+endpoints = ["https://pve2:8006/api2/json", "https://pve3:8006/api2/json"]
+endpoint_failure_threshold = 2
+token_id = "mayfly@pve!mayfly"
+secret = "x"
+node = "pve1"
+storage = "tank"
+`
+	var c Config
+	if _, err := toml.Decode(src, &c); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if got, want := len(c.Proxmox.Endpoints), 2; got != want {
+		t.Fatalf("len(endpoints) = %d, want %d", got, want)
+	}
+	if got, want := c.Proxmox.Endpoints[0], "https://pve2:8006/api2/json"; got != want {
+		t.Errorf("endpoints[0] = %q, want %q", got, want)
+	}
+	if got, want := c.Proxmox.Endpoints[1], "https://pve3:8006/api2/json"; got != want {
+		t.Errorf("endpoints[1] = %q, want %q", got, want)
+	}
+	if got, want := c.Proxmox.EndpointFailureThreshold, 2; got != want {
+		t.Errorf("endpoint_failure_threshold = %d, want %d", got, want)
+	}
+}
+
+func TestProxmoxEndpointsDefaultEmpty(t *testing.T) {
+	// Omitting the new keys leaves the single-endpoint behavior untouched.
+	const src = `
+[proxmox]
+url = "https://pve1:8006/api2/json"
+token_id = "mayfly@pve!mayfly"
+secret = "x"
+node = "pve1"
+storage = "tank"
+`
+	var c Config
+	if _, err := toml.Decode(src, &c); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(c.Proxmox.Endpoints) != 0 {
+		t.Errorf("endpoints = %v, want empty", c.Proxmox.Endpoints)
+	}
+	if c.Proxmox.EndpointFailureThreshold != 0 {
+		t.Errorf("endpoint_failure_threshold = %d, want 0", c.Proxmox.EndpointFailureThreshold)
+	}
+}
+
 func TestVLANAndFirewallParse(t *testing.T) {
 	const src = `
 [proxmox]

@@ -38,6 +38,19 @@ func New(cfg config.Proxmox) *Client {
 	if cfg.Insecure {
 		opts = append(opts, proxmox.WithInsecureSkipVerify())
 	}
+	// Multi-endpoint failover (go-proxmox v0.9.0+): when extra cluster
+	// endpoints are configured, the client fails over to them when the primary
+	// (cfg.URL) is unreachable or returns a gateway-class error. Any node in a
+	// quorate cluster serves the whole API and tokens are cluster-wide, so a
+	// single down node no longer blocks cluster-wide calls or aborts an apply.
+	// With no extra endpoints this is a no-op and the client talks only to
+	// cfg.URL, exactly as before.
+	if len(cfg.Endpoints) > 0 {
+		opts = append(opts, proxmox.WithAdditionalEndpoints(cfg.Endpoints...))
+		if cfg.EndpointFailureThreshold > 0 {
+			opts = append(opts, proxmox.WithEndpointFailureThreshold(cfg.EndpointFailureThreshold))
+		}
+	}
 	api := proxmox.NewClient(cfg.URL, opts...)
 	return &Client{API: api, Node: cfg.Node, cfg: cfg}
 }

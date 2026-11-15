@@ -840,11 +840,25 @@ type WindowsRunnerSpec struct {
 func (w WindowsRunnerSpec) IsZero() bool { return w == WindowsRunnerSpec{} }
 
 type Proxmox struct {
-	URL     string `toml:"url"`
-	TokenID string `toml:"token_id"`
-	Secret  string `toml:"secret"`
-	Node    string `toml:"node"`
-	Storage string `toml:"storage"`
+	URL string `toml:"url"`
+	// Endpoints lists additional API base URLs for OTHER nodes of the same
+	// Proxmox cluster (e.g. "https://pve2:8006/api2/json"), used only for
+	// failover. URL stays the primary; these are tried, in order, when the
+	// current endpoint is unreachable or returns a gateway-class error
+	// (502/503/504/595/596). Any node in a quorate cluster serves the whole
+	// API and API tokens are cluster-wide, so this lets a single down node be
+	// routed around instead of blocking cluster-wide calls / aborting an apply.
+	// Empty = today's single-endpoint behavior, unchanged.
+	Endpoints []string `toml:"endpoints"`
+	// EndpointFailureThreshold is how many consecutive transport failures an
+	// endpoint accumulates before the client's circuit breaker benches it for a
+	// cooldown. Zero uses go-proxmox's default (3). Only meaningful alongside
+	// Endpoints.
+	EndpointFailureThreshold int    `toml:"endpoint_failure_threshold"`
+	TokenID                  string `toml:"token_id"`
+	Secret                   string `toml:"secret"`
+	Node                     string `toml:"node"`
+	Storage                  string `toml:"storage"`
 	// CloudInitStorage places the generated per-VM cloud-init ISO on a
 	// storage that accepts 'iso' content (e.g. a dir store like "local"),
 	// separate from Storage (the VM's OS disk). Required when Storage is a
